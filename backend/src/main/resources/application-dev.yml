@@ -4,10 +4,10 @@ spring:
       on-profile: dev
 
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:leetcode_daily}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
-    username: ${MYSQL_USER:leetcode_user}
-    password: ${MYSQL_PASSWORD:leetcode_secret}
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:h2:mem:leetcodedaily;DB_CLOSE_DELAY=-1;MODE=MySQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
 
   jpa:
     hibernate:
@@ -18,7 +18,7 @@ spring:
         format_sql: true
 
   flyway:
-    enabled: false # Handled via Phase 2 migration scripts
+    enabled: false
 
 logging:
   level:

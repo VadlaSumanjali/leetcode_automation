@@ -16,3 +16,4 @@ done
 
 echo "[ERROR] Maven not found. Please install Maven or run via Docker."
 exit 1
+

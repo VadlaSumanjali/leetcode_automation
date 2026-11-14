@@ -28,3 +28,4 @@ if exist "%MAVEN_CMD%" (
 
 echo [ERROR] Maven not found. Please install Maven or ensure Docker is available.
 exit /b 1
+

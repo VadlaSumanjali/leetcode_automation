@@ -65,3 +65,4 @@ app:
     daily-cron: ${DAILY_EMAIL_CRON:0 0 6 * * *}
   cors:
     allowed-origins: ${CLIENT_ORIGIN:http://localhost:5173}
+
