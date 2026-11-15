@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// Base API URL: uses Vite proxy '/api' or environment variable
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+// Base API URL: uses Vite proxy '/api/v1' or environment variable
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -35,8 +35,9 @@ apiClient.interceptors.response.use(
       if (error.response.status === 401) {
         localStorage.removeItem('leetcode_daily_token');
         localStorage.removeItem('leetcode_daily_user');
-        // Only redirect if not already on login/register page
-        if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/register') && window.location.pathname !== '/') {
+        // Only redirect if on protected routes
+        const path = window.location.pathname;
+        if (path !== '/' && !path.includes('/login') && !path.includes('/register')) {
           window.location.href = '/login?expired=true';
         }
       }
@@ -51,4 +52,3 @@ apiClient.interceptors.response.use(
 );
 
 export default apiClient;
-

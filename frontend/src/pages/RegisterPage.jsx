@@ -3,9 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Code2, ArrowRight, Lock, Mail, User, AlertCircle } from 'lucide-react';
 import Card from '../components/Card';
 import apiClient from '../api/client';
+import { useAuth } from '../context/AuthContext';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [formData, setFormData] = useState({ name: '', email: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -13,7 +15,7 @@ export default function RegisterPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
-    if (!formData.name || !formData.email || !formData.password) {
+    if (!formData.name.trim() || !formData.email.trim() || !formData.password) {
       setError('Please fill in all fields.');
       return;
     }
@@ -21,15 +23,14 @@ export default function RegisterPage() {
     try {
       const response = await apiClient.post('/auth/register', formData);
       if (response?.data?.token) {
-        localStorage.setItem('leetcode_daily_token', response.data.token);
-        localStorage.setItem('leetcode_daily_user', JSON.stringify(response.data.user));
+        login(response.data.token, response.data.user);
+        // Direct to mandatory onboarding wizard
         navigate('/onboarding');
       } else {
-        // Ready for Phase 3 integration: if backend not running yet, show helpful indicator
-        navigate('/onboarding');
+        throw new Error('Registration did not return a valid session token.');
       }
     } catch (err) {
-      setError(err.message || 'Registration failed. Backend will be connected in Phase 3.');
+      setError(err.message || 'Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -100,14 +101,14 @@ export default function RegisterPage() {
                 <input
                   type="password"
                   required
-                  minLength={8}
+                  minLength={6}
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   placeholder="••••••••"
                   className="w-full pl-9 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 />
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">Must be at least 8 characters</p>
+              <p className="text-[11px] text-slate-400 mt-1">Must be at least 6 characters</p>
             </div>
 
             <button
@@ -115,7 +116,7 @@ export default function RegisterPage() {
               disabled={loading}
               className="w-full flex items-center justify-center gap-2 py-2.5 px-4 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm transition-colors disabled:opacity-70"
             >
-              {loading ? 'Creating account...' : 'Create Account'}
+              {loading ? 'Creating account...' : 'Create Account & Continue'}
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
@@ -131,4 +132,3 @@ export default function RegisterPage() {
     </div>
   );
 }
-

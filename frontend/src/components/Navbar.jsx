@@ -1,29 +1,30 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Code2, LayoutDashboard, Calendar, History, BarChart3, Settings, LogIn, UserPlus, LogOut, Menu, X } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 export default function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  // Check auth state from localStorage (Phase 1 mock check / Phase 3 live auth)
-  const token = localStorage.getItem('leetcode_daily_token');
-  const storedUser = localStorage.getItem('leetcode_daily_user');
-  const user = storedUser ? JSON.parse(storedUser) : null;
-  const isAuthenticated = Boolean(token);
+  const { user, isAuthenticated, logout } = useAuth();
 
   const handleLogout = () => {
-    localStorage.removeItem('leetcode_daily_token');
-    localStorage.removeItem('leetcode_daily_user');
+    logout();
     navigate('/login');
   };
 
-  const navLinks = [
+  const authenticatedLinks = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { name: 'Daily Plan', path: '/plan', icon: Calendar },
     { name: 'Problem History', path: '/history', icon: History },
     { name: 'Topic Progress', path: '/topics', icon: BarChart3 },
+  ];
+
+  const publicLinks = [
+    { name: 'Features', path: '/#features' },
+    { name: 'How It Works', path: '/#how-it-works' },
+    { name: 'Curriculum', path: '/#curriculum' },
   ];
 
   const isActive = (path) => location.pathname === path;
@@ -43,29 +44,41 @@ export default function Navbar() {
             </div>
           </Link>
 
-          {/* Desktop Navigation Links */}
+          {/* Navigation Links */}
           <nav className="hidden md:flex items-center space-x-1">
-            {navLinks.map((link) => {
-              const Icon = link.icon;
-              const active = isActive(link.path);
-              return (
-                <Link
-                  key={link.path}
-                  to={link.path}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    active
-                      ? 'bg-slate-100 text-indigo-600'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                  }`}
+            {isAuthenticated ? (
+              authenticatedLinks.map((link) => {
+                const Icon = link.icon;
+                const active = isActive(link.path);
+                return (
+                  <Link
+                    key={link.path}
+                    to={link.path}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      active
+                        ? 'bg-slate-100 text-indigo-600'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {link.name}
+                  </Link>
+                );
+              })
+            ) : (
+              publicLinks.map((link) => (
+                <a
+                  key={link.name}
+                  href={link.path}
+                  className="px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
                 >
-                  <Icon className="w-4 h-4" />
                   {link.name}
-                </Link>
-              );
-            })}
+                </a>
+              ))
+            )}
           </nav>
 
-          {/* Desktop Auth Controls */}
+          {/* Auth Controls */}
           <div className="hidden md:flex items-center gap-3">
             {isAuthenticated ? (
               <div className="flex items-center gap-3">
@@ -126,23 +139,37 @@ export default function Navbar() {
       {/* Mobile menu dropdown */}
       {mobileMenuOpen && (
         <div className="md:hidden border-b border-slate-200 bg-white px-4 pt-2 pb-4 space-y-1">
-          {navLinks.map((link) => {
-            const Icon = link.icon;
-            const active = isActive(link.path);
-            return (
-              <Link
-                key={link.path}
-                to={link.path}
+          {isAuthenticated ? (
+            authenticatedLinks.map((link) => {
+              const Icon = link.icon;
+              const active = isActive(link.path);
+              return (
+                <Link
+                  key={link.path}
+                  to={link.path}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${
+                    active ? 'bg-slate-100 text-indigo-600' : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {link.name}
+                </Link>
+              );
+            })
+          ) : (
+            publicLinks.map((link) => (
+              <a
+                key={link.name}
+                href={link.path}
                 onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${
-                  active ? 'bg-slate-100 text-indigo-600' : 'text-slate-600 hover:bg-slate-50'
-                }`}
+                className="block px-3 py-2 text-sm text-slate-600 hover:bg-slate-50 rounded-lg"
               >
-                <Icon className="w-4 h-4" />
                 {link.name}
-              </Link>
-            );
-          })}
+              </a>
+            ))
+          )}
+
           <div className="pt-2 border-t border-slate-200 flex flex-col gap-2">
             {isAuthenticated ? (
               <>
@@ -189,4 +216,3 @@ export default function Navbar() {
     </header>
   );
 }
-

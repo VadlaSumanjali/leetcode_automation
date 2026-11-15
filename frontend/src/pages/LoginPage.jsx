@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Code2, ArrowRight, Lock, Mail, AlertCircle, Info } from 'lucide-react';
 import Card from '../components/Card';
 import apiClient from '../api/client';
+import { useAuth } from '../context/AuthContext';
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const expired = searchParams.get('expired');
+  const location = useLocation();
+  const { login } = useAuth();
+
+  const queryParams = new URLSearchParams(location.search);
+  const expired = queryParams.get('expired');
+  const from = location.state?.from?.pathname || '/dashboard';
 
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
@@ -20,17 +25,20 @@ export default function LoginPage() {
     try {
       const response = await apiClient.post('/auth/login', formData);
       if (response?.data?.token) {
-        localStorage.setItem('leetcode_daily_token', response.data.token);
-        localStorage.setItem('leetcode_daily_user', JSON.stringify(response.data.user));
-        navigate('/dashboard');
+        const { token, user } = response.data;
+        login(token, user);
+
+        // Enforce onboarding check
+        if (!user.onboardingCompleted) {
+          navigate('/onboarding');
+        } else {
+          navigate(from === '/login' || from === '/register' ? '/dashboard' : from);
+        }
       } else {
-        // Ready for Phase 3 integration: fallback
-        localStorage.setItem('leetcode_daily_token', 'mock_token_phase_1');
-        localStorage.setItem('leetcode_daily_user', JSON.stringify({ name: 'Demo User', email: formData.email }));
-        navigate('/dashboard');
+        throw new Error('Authentication failed. No token received.');
       }
     } catch (err) {
-      setError(err.message || 'Login failed. Please verify credentials.');
+      setError(err.message || 'Invalid email or password.');
     } finally {
       setLoading(false);
     }
@@ -50,7 +58,7 @@ export default function LoginPage() {
         {expired && (
           <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2">
             <Info className="w-4 h-4 shrink-0" />
-            <span>Your session has expired. Please log in again.</span>
+            <span>Your session has expired. Please sign in again.</span>
           </div>
         )}
 
@@ -118,4 +126,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
