@@ -12,7 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/v1/health")
+@RequestMapping({"/api/v1/health", "/health"})
 public class HealthController {
 
     @Value("${spring.application.name:leetcode-daily-backend}")

@@ -1,7 +1,19 @@
 import axios from 'axios';
 
-// Base API URL: uses Vite proxy '/api/v1' or environment variable
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+// Base API URL: normalizes environment variable or falls back to Vite proxy '/api/v1'
+const getNormalizedBaseUrl = () => {
+  const envUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
+  if (!envUrl) {
+    return '/api/v1';
+  }
+  const cleanUrl = envUrl.replace(/\/+$/, '');
+  if (cleanUrl.endsWith('/api/v1')) {
+    return cleanUrl;
+  }
+  return `${cleanUrl}/api/v1`;
+};
+
+const API_BASE_URL = getNormalizedBaseUrl();
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -14,8 +26,14 @@ const apiClient = axios.create({
 // Request interceptor to attach JWT token if present
 apiClient.interceptors.request.use(
   (config) => {
+    const isPublicAuth = config.url && (
+      config.url.endsWith('/auth/login') ||
+      config.url.endsWith('/auth/register') ||
+      config.url.includes('/auth/login?') ||
+      config.url.includes('/auth/register?')
+    );
     const token = localStorage.getItem('leetcode_daily_token');
-    if (token) {
+    if (token && !isPublicAuth) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
