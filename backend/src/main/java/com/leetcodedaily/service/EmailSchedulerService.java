@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -39,6 +40,7 @@ public class EmailSchedulerService {
 
     // Runs every minute to check if any user's scheduled time has arrived in their local timezone
     @Scheduled(cron = "0 * * * * *")
+    @Transactional
     public void processScheduledEmailDispatches() {
         List<UserPreference> activePreferences = userPreferenceRepository.findByEmailNotificationsEnabledTrue();
         if (activePreferences.isEmpty()) {

@@ -19,7 +19,7 @@ import SettingsPage from './pages/SettingsPage';
 
 export default function App() {
   return (
-    <Router>
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AuthProvider>
         <div className="min-h-screen flex flex-col bg-white text-slate-800">
           <Navbar />
