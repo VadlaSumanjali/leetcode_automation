@@ -46,6 +46,10 @@ replay_pid*
 # Database / Docker volumes
 mysql_data/
 docker-data/
+data/
+backend/data/
+*.mv.db
+*.trace.db
 
 # Logs
 logs/

@@ -33,7 +33,7 @@ apiClient.interceptors.request.use(
       config.url.includes('/auth/register?')
     );
     const token = localStorage.getItem('leetcode_daily_token');
-    if (token && !isPublicAuth) {
+    if (token && token !== 'null' && token !== 'undefined' && !isPublicAuth) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;

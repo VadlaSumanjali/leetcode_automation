@@ -106,12 +106,13 @@ public class DatabaseConfig {
 
     private DataSource createFallbackH2DataSource() {
         HikariConfig config = new HikariConfig();
-        config.setJdbcUrl("jdbc:h2:mem:leetcodedaily;DB_CLOSE_DELAY=-1;MODE=MySQL;NON_KEYWORDS=USER,USERS");
+        // File-based H2 database for local persistence across restarts so users and progress are preserved
+        config.setJdbcUrl("jdbc:h2:file:./data/leetcodedaily;AUTO_SERVER=TRUE;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;NON_KEYWORDS=USER,USERS");
         config.setDriverClassName("org.h2.Driver");
         config.setUsername("sa");
         config.setPassword("");
         config.setMaximumPoolSize(5);
-        config.setPoolName("LeetCodeDailyFallbackH2Pool");
+        config.setPoolName("LeetCodeDailyPersistentH2Pool");
         return new HikariDataSource(config);
     }
 }

@@ -37,12 +37,21 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<ApiResponse<UserDto>> getCurrentUser(@AuthenticationPrincipal UserDetails userDetails) {
-        if (userDetails == null) {
+    public ResponseEntity<ApiResponse<UserDto>> getCurrentUser(
+            @AuthenticationPrincipal UserDetails userDetails,
+            org.springframework.security.core.Authentication authentication) {
+        String email = null;
+        if (userDetails != null) {
+            email = userDetails.getUsername();
+        } else if (authentication != null && authentication.isAuthenticated() && !"anonymousUser".equals(authentication.getPrincipal())) {
+            email = authentication.getName();
+        }
+
+        if (email == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(ApiResponse.error("Session expired or invalid"));
         }
-        UserDto userDto = authService.getCurrentUser(userDetails.getUsername());
+        UserDto userDto = authService.getCurrentUser(email);
         return ResponseEntity.ok(ApiResponse.success(userDto, "User profile retrieved"));
     }
 }

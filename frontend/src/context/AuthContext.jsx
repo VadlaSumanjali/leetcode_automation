@@ -4,17 +4,20 @@ import apiClient from '../api/client';
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState(() => localStorage.getItem('leetcode_daily_token'));
+  const [token, setToken] = useState(() => {
+    const t = localStorage.getItem('leetcode_daily_token');
+    return (t && t !== 'null' && t !== 'undefined') ? t : null;
+  });
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('leetcode_daily_user');
-    return saved ? JSON.parse(saved) : null;
+    return (saved && saved !== 'null' && saved !== 'undefined') ? JSON.parse(saved) : null;
   });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const initAuth = async () => {
       const storedToken = localStorage.getItem('leetcode_daily_token');
-      if (storedToken) {
+      if (storedToken && storedToken !== 'null' && storedToken !== 'undefined') {
         try {
           const res = await apiClient.get('/auth/me');
           if (res?.data) {
@@ -22,12 +25,17 @@ export function AuthProvider({ children }) {
             localStorage.setItem('leetcode_daily_user', JSON.stringify(res.data));
           }
         } catch (err) {
-          console.error('Failed to restore session:', err.message);
+          // Cleanly clear expired or invalid session
           setToken(null);
           setUser(null);
           localStorage.removeItem('leetcode_daily_token');
           localStorage.removeItem('leetcode_daily_user');
         }
+      } else {
+        setToken(null);
+        setUser(null);
+        localStorage.removeItem('leetcode_daily_token');
+        localStorage.removeItem('leetcode_daily_user');
       }
       setLoading(false);
     };
