@@ -88,7 +88,16 @@ public class DatabaseConfig {
             config.setConnectionTimeout(20000);
             config.setPoolName("LeetCodeDailyHikariPool");
 
-            return new HikariDataSource(config);
+            try {
+                HikariDataSource ds = new HikariDataSource(config);
+                try (java.sql.Connection conn = ds.getConnection()) {
+                    log.info("Successfully connected to production database: {}", conn.getMetaData().getDatabaseProductName());
+                }
+                return ds;
+            } catch (Exception ex) {
+                log.error("Failed to connect to production database: {}. Falling back to internal database so web service stays healthy.", ex.getMessage());
+                return createFallbackH2DataSource();
+            }
         }
 
         log.info("No external database configured. Initializing fallback DataSource.");
