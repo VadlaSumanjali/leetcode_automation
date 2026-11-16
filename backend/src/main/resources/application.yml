@@ -2,13 +2,13 @@ spring:
   application:
     name: leetcode-daily-backend
   profiles:
-    active: ${SPRING_PROFILES_ACTIVE:dev}
+    active: ${SPRING_PROFILES_ACTIVE:prod}
 
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:leetcode_daily}?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true}
-    username: ${SPRING_DATASOURCE_USERNAME:${MYSQL_USER:leetcode_user}}
-    password: ${SPRING_DATASOURCE_PASSWORD:${MYSQL_PASSWORD:leetcode_secret}}
-    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:com.mysql.cj.jdbc.Driver}
+    url: ${SPRING_DATASOURCE_URL:${DATABASE_URL:jdbc:postgresql://aws-0-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require}}
+    username: ${SPRING_DATASOURCE_USERNAME:${DB_USER:postgres.gzfygfioutetfswszcvc}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${DB_PASSWORD:}}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:}
     hikari:
       maximum-pool-size: 10
       minimum-idle: 2
@@ -23,9 +23,13 @@ spring:
     properties:
       hibernate:
         format_sql: false
+        default_schema: public
+        jdbc:
+          lob:
+            non_contextual_creation: true
 
   flyway:
-    enabled: true
+    enabled: ${FLYWAY_ENABLED:false}
     baseline-on-migrate: true
     baseline-version: 0
     locations: classpath:db/migration
@@ -63,5 +67,4 @@ app:
   scheduler:
     daily-cron: ${DAILY_EMAIL_CRON:0 0 6 * * *}
   cors:
-    allowed-origins: ${CLIENT_ORIGIN:http://localhost:5173}
-
+    allowed-origins: ${CLIENT_ORIGIN:http://localhost:5173,https://leetcode-automation.vercel.app}
