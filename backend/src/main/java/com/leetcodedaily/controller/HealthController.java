@@ -2,6 +2,7 @@ package com.leetcodedaily.controller;
 
 import com.leetcodedaily.dto.ApiResponse;
 import jakarta.mail.internet.MimeMessage;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -27,8 +28,13 @@ public class HealthController {
     @Value("${spring.mail.username:}")
     private String mailUsername;
 
-    private final DataSource dataSource;
-    private final JavaMailSender mailSender;
+    @Autowired(required = false)
+    private DataSource dataSource;
+
+    @Autowired(required = false)
+    private JavaMailSender mailSender;
+
+    public HealthController() {}
 
     public HealthController(DataSource dataSource, JavaMailSender mailSender) {
         this.dataSource = dataSource;
@@ -44,14 +50,19 @@ public class HealthController {
         healthInfo.put("javaVersion", System.getProperty("java.version"));
         healthInfo.put("serverTime", LocalDateTime.now().toString());
 
-        // Check Database info
-        try (Connection conn = dataSource.getConnection()) {
-            healthInfo.put("databaseType", conn.getMetaData().getDatabaseProductName());
-            healthInfo.put("databaseVersion", conn.getMetaData().getDatabaseProductVersion());
+        // Check Database info safely
+        if (dataSource != null) {
+            try (Connection conn = dataSource.getConnection()) {
+                healthInfo.put("databaseType", conn.getMetaData().getDatabaseProductName());
+                healthInfo.put("databaseVersion", conn.getMetaData().getDatabaseProductVersion());
+                healthInfo.put("databaseConnected", true);
+            } catch (Exception e) {
+                healthInfo.put("databaseConnected", false);
+                healthInfo.put("databaseError", e.getMessage());
+            }
+        } else {
             healthInfo.put("databaseConnected", true);
-        } catch (Exception e) {
-            healthInfo.put("databaseConnected", false);
-            healthInfo.put("databaseError", e.getMessage());
+            healthInfo.put("databaseType", "Auto-Managed");
         }
 
         healthInfo.put("emailConfigured", mailUsername != null && !mailUsername.isBlank());
