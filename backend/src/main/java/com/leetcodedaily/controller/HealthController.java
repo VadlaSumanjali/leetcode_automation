@@ -1,7 +1,6 @@
 package com.leetcodedaily.controller;
 
 import com.leetcodedaily.dto.ApiResponse;
-import com.leetcodedaily.service.EmailNotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
@@ -34,14 +33,7 @@ public class HealthController {
     @Autowired(required = false)
     private DataSource dataSource;
 
-    @Autowired(required = false)
-    private EmailNotificationService emailNotificationService;
-
     public HealthController() {}
-
-    public HealthController(EmailNotificationService emailNotificationService) {
-        this.emailNotificationService = emailNotificationService;
-    }
 
     @GetMapping
     public ResponseEntity<ApiResponse<Map<String, Object>>> checkHealth() {
@@ -77,26 +69,6 @@ public class HealthController {
         healthInfo.put("message", "LeetCode Daily backend service is operational.");
 
         return ResponseEntity.ok(ApiResponse.success(healthInfo, "System is healthy"));
-    }
-
-    @PostMapping("/test-email")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> sendTestEmail(
-            @RequestParam(required = false) String to) {
-        String recipient = (to != null && !to.isBlank()) ? to : mailUsername;
-        if (recipient == null || recipient.isBlank()) {
-            recipient = "test@example.com";
-        }
-
-        boolean delivered = (emailNotificationService != null)
-                && emailNotificationService.sendTestEmail(recipient);
-
-        Map<String, Object> res = Map.of(
-                "delivered", delivered,
-                "recipient", recipient,
-                "provider", (resendApiKey != null && !resendApiKey.isBlank()) ? "Resend HTTPS API" : "SMTP / Simulation",
-                "timestamp", LocalDateTime.now().toString()
-        );
-        return ResponseEntity.ok(ApiResponse.success(res, "Test email processed successfully"));
     }
 
     @GetMapping("/probe-network")

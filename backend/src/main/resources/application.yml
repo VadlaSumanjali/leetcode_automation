@@ -58,7 +58,7 @@ server:
 # App specific properties
 app:
   jwt:
-    secret: ${JWT_SECRET:c2VjdXJlX2xlZXRjb2RlX2RhaWx5X2p3dF9zZWNyZXRfa2V5XzIwMjZfcHJvZHVjdGlvbg==}
+    secret: ${JWT_SECRET:}
     expiration-hours: ${JWT_EXPIRATION_HOURS:24}
   gemini:
     api-key: ${GEMINI_API_KEY:}
