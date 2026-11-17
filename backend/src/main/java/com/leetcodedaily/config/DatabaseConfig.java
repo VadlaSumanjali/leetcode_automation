@@ -17,6 +17,9 @@ public class DatabaseConfig {
 
     private static final Logger log = LoggerFactory.getLogger(DatabaseConfig.class);
 
+    public static volatile String lastConnectionStatus = "Initializing";
+    public static volatile String activeJdbcUrl = "";
+
     @Value("${spring.datasource.url:}")
     private String rawUrl;
 
@@ -65,12 +68,14 @@ public class DatabaseConfig {
 
         // Determine if PostgreSQL or MySQL or H2
         if (activeUrl != null && !activeUrl.isBlank()) {
+            activeJdbcUrl = activeUrl.replaceAll(":[^:@]+@", ":****@");
             if (activeUrl.startsWith("jdbc:postgresql:") && (password == null || password.isBlank())) {
                 log.warn("Supabase PostgreSQL URL configured without password. Falling back to persistent in-memory database until production credentials are set.");
+                lastConnectionStatus = "FALLBACK_H2: Database password is not set in environment";
                 return createFallbackH2DataSource();
             }
 
-            log.info("Configuring production DataSource with URL: {}", activeUrl.replaceAll(":[^:@]+@", ":****@"));
+            log.info("Configuring production DataSource with URL: {}", activeJdbcUrl);
             HikariConfig config = new HikariConfig();
             config.setJdbcUrl(activeUrl);
             if (username != null && !username.isBlank()) {
@@ -91,15 +96,19 @@ public class DatabaseConfig {
             try {
                 HikariDataSource ds = new HikariDataSource(config);
                 try (java.sql.Connection conn = ds.getConnection()) {
+                    lastConnectionStatus = "CONNECTED: " + conn.getMetaData().getDatabaseProductName() + " " + conn.getMetaData().getDatabaseProductVersion();
                     log.info("Successfully connected to production database: {}", conn.getMetaData().getDatabaseProductName());
                 }
                 return ds;
             } catch (Exception ex) {
+                lastConnectionStatus = "FALLBACK_H2_ON_ERROR: " + ex.getMessage();
                 log.error("Failed to connect to production database: {}. Falling back to internal database so web service stays healthy.", ex.getMessage());
                 return createFallbackH2DataSource();
             }
         }
 
+        activeJdbcUrl = "Fallback H2";
+        lastConnectionStatus = "FALLBACK_H2: No external database configured";
         log.info("No external database configured. Initializing fallback DataSource.");
         return createFallbackH2DataSource();
     }

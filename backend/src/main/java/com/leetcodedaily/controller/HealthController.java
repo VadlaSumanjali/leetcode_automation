@@ -64,6 +64,8 @@ public class HealthController {
             healthInfo.put("databaseConnected", true);
             healthInfo.put("databaseType", "Auto-Managed");
         }
+        healthInfo.put("databaseStatus", com.leetcodedaily.config.DatabaseConfig.lastConnectionStatus);
+        healthInfo.put("datasourceUrlConfigured", com.leetcodedaily.config.DatabaseConfig.activeJdbcUrl);
 
         healthInfo.put("emailConfigured", mailUsername != null && !mailUsername.isBlank());
         healthInfo.put("emailSender", mailUsername);
@@ -101,5 +103,25 @@ public class HealthController {
             return ResponseEntity.internalServerError()
                     .body(ApiResponse.error("Failed to send test email: " + e.getMessage()));
         }
+    }
+
+    @GetMapping("/probe-network")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> probeNetwork() {
+        Map<String, Object> results = new java.util.LinkedHashMap<>();
+        int[] ports = {5432, 6543, 587, 465, 2525, 443};
+        String[] hosts = {"aws-0-ap-southeast-1.pooler.supabase.com", "smtp.gmail.com"};
+        for (String host : hosts) {
+            for (int port : ports) {
+                if (host.contains("supabase") && port != 5432 && port != 6543) continue;
+                if (host.contains("gmail") && port != 587 && port != 465 && port != 2525 && port != 443) continue;
+                try (java.net.Socket socket = new java.net.Socket()) {
+                    socket.connect(new java.net.InetSocketAddress(host, port), 2500);
+                    results.put(host + ":" + port, "OPEN");
+                } catch (Exception e) {
+                    results.put(host + ":" + port, "BLOCKED (" + e.getClass().getSimpleName() + ": " + e.getMessage() + ")");
+                }
+            }
+        }
+        return ResponseEntity.ok(ApiResponse.success(results, "Outbound network connectivity probe completed"));
     }
 }
