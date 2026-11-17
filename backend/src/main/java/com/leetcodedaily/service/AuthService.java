@@ -1,14 +1,13 @@
 package com.leetcodedaily.service;
 
-import com.leetcodedaily.dto.AuthResponse;
-import com.leetcodedaily.dto.LoginRequest;
-import com.leetcodedaily.dto.RegisterRequest;
-import com.leetcodedaily.dto.UserDto;
+import com.leetcodedaily.dto.*;
 import com.leetcodedaily.entity.User;
 import com.leetcodedaily.exception.BadRequestException;
 import com.leetcodedaily.exception.ResourceNotFoundException;
 import com.leetcodedaily.repository.UserRepository;
 import com.leetcodedaily.security.JwtTokenProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -20,17 +19,27 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AuthService {
 
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider tokenProvider;
+    private final OtpService otpService;
+    private final EmailNotificationService emailNotificationService;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder,
-                       AuthenticationManager authenticationManager, JwtTokenProvider tokenProvider) {
+    public AuthService(UserRepository userRepository,
+                       PasswordEncoder passwordEncoder,
+                       AuthenticationManager authenticationManager,
+                       JwtTokenProvider tokenProvider,
+                       OtpService otpService,
+                       EmailNotificationService emailNotificationService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.tokenProvider = tokenProvider;
+        this.otpService = otpService;
+        this.emailNotificationService = emailNotificationService;
     }
 
     @Transactional
@@ -75,5 +84,54 @@ public class AuthService {
         User user = userRepository.findByEmail(email.toLowerCase())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: " + email));
         return UserDto.fromEntity(user);
+    }
+
+    /**
+     * Initiates password reset by generating a secure 6-digit OTP and emailing it to the user.
+     */
+    @Transactional
+    public void forgotPassword(ForgotPasswordRequest request) {
+        String email = request.getEmail().trim().toLowerCase();
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("No account registered with email: " + email));
+
+        String otp = otpService.generateAndStoreOtp(email);
+        boolean sent = emailNotificationService.sendOtpEmail(user, otp);
+        if (!sent) {
+            log.warn("Notice: OTP email dispatch returned false for {}", email);
+        }
+    }
+
+    /**
+     * Verifies the 6-digit OTP code for the given email address.
+     */
+    public void verifyOtp(VerifyOtpRequest request) {
+        String email = request.getEmail().trim().toLowerCase();
+        boolean valid = otpService.verifyOtp(email, request.getOtp());
+        if (!valid) {
+            throw new BadRequestException("Invalid or expired 6-digit verification code. Please check and try again.");
+        }
+    }
+
+    /**
+     * Completes password reset once OTP has been verified.
+     */
+    @Transactional
+    public void resetPassword(ResetPasswordRequest request) {
+        String email = request.getEmail().trim().toLowerCase();
+        boolean valid = otpService.verifyOtp(email, request.getOtp());
+        if (!valid) {
+            throw new BadRequestException("Invalid or expired verification code.");
+        }
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("No account registered with email: " + email));
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+
+        otpService.clearOtp(email);
+        emailNotificationService.sendPasswordResetSuccessEmail(user);
+        log.info("Password successfully updated for user {}", email);
     }
 }

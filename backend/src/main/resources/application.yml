@@ -66,5 +66,8 @@ app:
     endpoint: https://generativelanguage.googleapis.com/v1beta/models
   scheduler:
     daily-cron: ${DAILY_EMAIL_CRON:0 0 6 * * *}
+  mail:
+    resend-api-key: ${RESEND_API_KEY:}
+    from-email: ${RESEND_FROM_EMAIL:${MAIL_FROM:LeetCode Daily <onboarding@resend.dev>}}
   cors:
     allowed-origins: ${CLIENT_ORIGIN:http://localhost:5173,https://leetcode-automation.vercel.app}

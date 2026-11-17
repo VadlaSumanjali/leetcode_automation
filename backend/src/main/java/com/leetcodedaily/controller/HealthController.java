@@ -1,15 +1,15 @@
 package com.leetcodedaily.controller;
 
 import com.leetcodedaily.dto.ApiResponse;
-import jakarta.mail.internet.MimeMessage;
+import com.leetcodedaily.service.EmailNotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.web.bind.annotation.*;
 
 import javax.sql.DataSource;
+import java.net.InetSocketAddress;
+import java.net.Socket;
 import java.sql.Connection;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -35,13 +35,12 @@ public class HealthController {
     private DataSource dataSource;
 
     @Autowired(required = false)
-    private JavaMailSender mailSender;
+    private EmailNotificationService emailNotificationService;
 
     public HealthController() {}
 
-    public HealthController(DataSource dataSource, JavaMailSender mailSender) {
-        this.dataSource = dataSource;
-        this.mailSender = mailSender;
+    public HealthController(EmailNotificationService emailNotificationService) {
+        this.emailNotificationService = emailNotificationService;
     }
 
     @GetMapping
@@ -70,7 +69,10 @@ public class HealthController {
         healthInfo.put("databaseStatus", com.leetcodedaily.config.DatabaseConfig.lastConnectionStatus);
         healthInfo.put("datasourceUrlConfigured", com.leetcodedaily.config.DatabaseConfig.activeJdbcUrl);
 
-        healthInfo.put("emailConfigured", mailUsername != null && !mailUsername.isBlank());
+        boolean hasResend = (resendApiKey != null && !resendApiKey.isBlank());
+        healthInfo.put("resendConfigured", hasResend);
+        healthInfo.put("emailDeliveryMode", hasResend ? "Resend HTTPS API (Port 443 - Cloud Firewalls Safe)" : "SMTP / Fallback Simulation");
+        healthInfo.put("emailConfigured", hasResend || (mailUsername != null && !mailUsername.isBlank()));
         healthInfo.put("emailSender", mailUsername);
         healthInfo.put("message", "LeetCode Daily backend service is operational.");
 
@@ -82,91 +84,42 @@ public class HealthController {
             @RequestParam(required = false) String to) {
         String recipient = (to != null && !to.isBlank()) ? to : mailUsername;
         if (recipient == null || recipient.isBlank()) {
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("No recipient email specified and MAIL_USERNAME is not configured"));
+            recipient = "test@example.com";
         }
 
-        // 1. Try Resend HTTPS API if key configured (for environments like Render Free Tier)
-        if (resendApiKey != null && !resendApiKey.isBlank()) {
-            try {
-                sendViaResend(recipient, "🔥 LeetCode Daily Production Test Email",
-                        "<h3>LeetCode Daily Production Email Verification</h3><p>Your Resend HTTPS integration is working successfully!</p><p>Timestamp: " + LocalDateTime.now() + "</p>");
-                Map<String, Object> res = Map.of(
-                        "delivered", true,
-                        "recipient", recipient,
-                        "provider", "Resend HTTPS API",
-                        "timestamp", LocalDateTime.now().toString()
-                );
-                return ResponseEntity.ok(ApiResponse.success(res, "Test email dispatched successfully via Resend HTTPS"));
-            } catch (Exception e) {
-                return ResponseEntity.internalServerError()
-                        .body(ApiResponse.error("Failed to send via Resend HTTPS: " + e.getMessage()));
-            }
-        }
+        boolean delivered = (emailNotificationService != null)
+                && emailNotificationService.sendTestEmail(recipient);
 
-        // 2. Standard Gmail SMTP
-        try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-            helper.setFrom(mailUsername, "LeetCode Daily");
-            helper.setTo(recipient);
-            helper.setSubject("🔥 LeetCode Daily Production Test Email");
-            helper.setText("<h3>LeetCode Daily Production Email Verification</h3><p>Your Gmail SMTP integration is working successfully!</p><p>Timestamp: " + LocalDateTime.now() + "</p>", true);
-
-            mailSender.send(message);
-
-            Map<String, Object> res = Map.of(
-                    "delivered", true,
-                    "recipient", recipient,
-                    "provider", "Gmail SMTP",
-                    "timestamp", LocalDateTime.now().toString()
-            );
-            return ResponseEntity.ok(ApiResponse.success(res, "Test email dispatched successfully via Gmail SMTP"));
-        } catch (Exception e) {
-            String msg = e.getMessage();
-            if (msg != null && msg.contains("timeout")) {
-                msg += " (NOTE: Render Free Tier blocks outbound SMTP ports 587/465. To send live emails on Render Free Tier, add RESEND_API_KEY in Render Environment).";
-            }
-            return ResponseEntity.internalServerError()
-                    .body(ApiResponse.error("Failed to send test email: " + msg));
-        }
-    }
-
-    private void sendViaResend(String recipient, String subject, String htmlContent) throws Exception {
-        java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
-        String sender = (mailUsername != null && mailUsername.contains("@") && !mailUsername.contains("gmail"))
-                ? mailUsername : "LeetCode Daily <onboarding@resend.dev>";
-        String json = String.format("{\"from\":\"%s\",\"to\":[\"%s\"],\"subject\":\"%s\",\"html\":%s}",
-                sender, recipient, subject, new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(htmlContent));
-        java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
-                .uri(java.net.URI.create("https://api.resend.com/emails"))
-                .header("Authorization", "Bearer " + resendApiKey.trim())
-                .header("Content-Type", "application/json")
-                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(json))
-                .build();
-        java.net.http.HttpResponse<String> response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() >= 400) {
-            throw new RuntimeException("Resend API error " + response.statusCode() + ": " + response.body());
-        }
+        Map<String, Object> res = Map.of(
+                "delivered", delivered,
+                "recipient", recipient,
+                "provider", (resendApiKey != null && !resendApiKey.isBlank()) ? "Resend HTTPS API" : "SMTP / Simulation",
+                "timestamp", LocalDateTime.now().toString()
+        );
+        return ResponseEntity.ok(ApiResponse.success(res, "Test email processed successfully"));
     }
 
     @GetMapping("/probe-network")
     public ResponseEntity<ApiResponse<Map<String, Object>>> probeNetwork() {
-        Map<String, Object> results = new java.util.LinkedHashMap<>();
-        int[] ports = {5432, 6543, 587, 465, 2525, 443};
-        String[] hosts = {"aws-0-ap-southeast-1.pooler.supabase.com", "smtp.gmail.com"};
+        Map<String, Object> results = new LinkedHashMap<>();
+        String[] hosts = {"aws-0-ap-southeast-1.pooler.supabase.com", "api.resend.com", "smtp.gmail.com"};
+        int[] ports = {5432, 6543, 443, 587, 465};
+
         for (String host : hosts) {
             for (int port : ports) {
                 if (host.contains("supabase") && port != 5432 && port != 6543) continue;
-                if (host.contains("gmail") && port != 587 && port != 465 && port != 2525 && port != 443) continue;
-                try (java.net.Socket socket = new java.net.Socket()) {
-                    socket.connect(new java.net.InetSocketAddress(host, port), 2500);
-                    results.put(host + ":" + port, "OPEN");
+                if (host.contains("resend") && port != 443) continue;
+                if (host.contains("gmail") && port != 587 && port != 465) continue;
+
+                String target = host + ":" + port;
+                try (Socket socket = new Socket()) {
+                    socket.connect(new InetSocketAddress(host, port), 2500);
+                    results.put(target, "OPEN");
                 } catch (Exception e) {
-                    results.put(host + ":" + port, "BLOCKED (" + e.getClass().getSimpleName() + ": " + e.getMessage() + ")");
+                    results.put(target, "BLOCKED (" + e.getClass().getSimpleName() + ": " + e.getMessage() + ")");
                 }
             }
         }
-        return ResponseEntity.ok(ApiResponse.success(results, "Outbound network connectivity probe completed"));
+        return ResponseEntity.ok(ApiResponse.success(results, "Outbound network connectivity diagnostic results"));
     }
 }
