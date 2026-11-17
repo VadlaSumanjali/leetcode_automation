@@ -22,14 +22,17 @@ public class JwtTokenProvider {
     private final long expirationMs;
 
     public JwtTokenProvider(
-            @Value("${app.jwt.secret:c2VjdXJlX2xlZXRjb2RlX2RhaWx5X2p3dF9zZWNyZXRfa2V5XzIwMjZfcHJvZHVjdGlvbg==}") String secret,
+            @Value("${app.jwt.secret}") String secret,
             @Value("${app.jwt.expiration-hours:24}") long expirationHours) {
-        // Ensure secret is at least 32 bytes (256 bits)
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException("JWT_SECRET must be configured before starting the application");
+        }
+
         byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
         if (keyBytes.length < 32) {
-            String padded = String.format("%-32s", secret).replace(' ', 'x');
-            keyBytes = padded.getBytes(StandardCharsets.UTF_8);
+            throw new IllegalStateException("JWT_SECRET must be at least 32 bytes long");
         }
+
         this.key = Keys.hmacShaKeyFor(keyBytes);
         this.expirationMs = expirationHours * 3600 * 1000;
     }
