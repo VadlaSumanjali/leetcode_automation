@@ -10,8 +10,8 @@ RUN mvn clean package -DskipTests
 # Stage 2: Run application with lightweight JRE 21
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-# Add non-root user for security
-RUN addgroup -S leetcode && adduser -S leetcode -G leetcode
+# Add non-root user for security and ensure proper ownership
+RUN addgroup -S leetcode && adduser -S leetcode -G leetcode && chown -R leetcode:leetcode /app
 USER leetcode
 
 COPY --from=build /app/target/*.jar app.jar
