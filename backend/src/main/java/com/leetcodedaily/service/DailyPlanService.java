@@ -57,7 +57,13 @@ public class DailyPlanService {
         // Check if plan already exists for today
         Optional<DailyPlan> existingPlan = dailyPlanRepository.findByUserIdAndPlanDate(user.getId(), today);
         if (existingPlan.isPresent()) {
-            return existingPlan.get();
+            DailyPlan plan = existingPlan.get();
+            // If the plan has no problems assigned yet, populate it from problem catalog!
+            if (plan.getProblems() == null || plan.getProblems().isEmpty()) {
+                populateProblemsForPlan(plan, user, preference);
+                return dailyPlanRepository.save(plan);
+            }
+            return plan;
         }
 
         // Generate new plan for today
@@ -84,6 +90,7 @@ public class DailyPlanService {
         }
 
         int target = preference.getDailyTarget();
+        if (target <= 0) target = 3;
         DailyPlan newPlan = new DailyPlan(user, planDate, dayNumber, target);
         newPlan = dailyPlanRepository.save(newPlan);
 
@@ -93,14 +100,26 @@ public class DailyPlanService {
             newPlan.addProblem(dpp);
         }
 
-        // 2. Determine how many new problems are needed
-        int remainingSlots = Math.max(0, target - carriedProblems.size());
+        // 2. Populate remaining problems from catalog
+        populateProblemsForPlan(newPlan, user, preference);
+        return dailyPlanRepository.save(newPlan);
+    }
+
+    @Transactional
+    public void populateProblemsForPlan(DailyPlan plan, User user, UserPreference preference) {
+        int target = preference.getDailyTarget();
+        if (target <= 0) target = 3;
+
+        int currentCount = (plan.getProblems() != null) ? plan.getProblems().size() : 0;
+        int remainingSlots = Math.max(0, target - currentCount);
 
         if (remainingSlots > 0) {
             // Strictly exclude ALL problems the user has ever received, solved, skipped, or imported
             Set<Long> userHistoryProblemIds = userProblemHistoryRepository.findProblemIdsByUserId(user.getId());
 
-            List<String> userTopics = Arrays.stream(preference.getSelectedTopics().split(","))
+            String topicsStr = (preference.getSelectedTopics() != null && !preference.getSelectedTopics().isBlank())
+                    ? preference.getSelectedTopics() : "Arrays,Strings,Hash Tables";
+            List<String> userTopics = Arrays.stream(topicsStr.split(","))
                     .map(String::trim)
                     .filter(s -> !s.isEmpty())
                     .collect(Collectors.toList());
@@ -108,7 +127,7 @@ public class DailyPlanService {
             String prefDifficulty = preference.getPreferredDifficulty();
 
             List<Problem> candidateProblems;
-            if ("Mixed".equalsIgnoreCase(prefDifficulty)) {
+            if ("Mixed".equalsIgnoreCase(prefDifficulty) || prefDifficulty == null || prefDifficulty.isBlank()) {
                 candidateProblems = problemRepository.findByTopics(userTopics);
             } else {
                 candidateProblems = problemRepository.findByTopicsAndDifficulty(userTopics, prefDifficulty);
@@ -129,14 +148,19 @@ public class DailyPlanService {
                 eligibleProblems.addAll(fallback);
             }
 
+            // If even history-filtered pool is exhausted, allow repeating from all problems
+            if (eligibleProblems.isEmpty()) {
+                eligibleProblems.addAll(problemRepository.findAll());
+            }
+
             // Shuffle candidates to provide variety
             Collections.shuffle(eligibleProblems);
 
             int toAssign = Math.min(remainingSlots, eligibleProblems.size());
             for (int i = 0; i < toAssign; i++) {
                 Problem assignedProblem = eligibleProblems.get(i);
-                DailyPlanProblem dpp = new DailyPlanProblem(newPlan, assignedProblem, false);
-                newPlan.addProblem(dpp);
+                DailyPlanProblem dpp = new DailyPlanProblem(plan, assignedProblem, false);
+                plan.addProblem(dpp);
 
                 // Record in user_problem_history to guarantee duplicate prevention
                 UserProblemHistory history = new UserProblemHistory(user, assignedProblem, "PENDING");
@@ -145,8 +169,7 @@ public class DailyPlanService {
         }
 
         // Calculate initial completion percentage
-        calculateAndUpdateProgress(newPlan);
-        return dailyPlanRepository.save(newPlan);
+        calculateAndUpdateProgress(plan);
     }
 
     @Transactional

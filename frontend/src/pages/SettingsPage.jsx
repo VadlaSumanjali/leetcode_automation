@@ -32,8 +32,8 @@ export default function SettingsPage() {
       setError(null);
       try {
         const res = await apiClient.get('/user/preferences');
-        if (res.data && res.data.data) {
-          const pref = res.data.data;
+        const pref = res?.data?.data ?? res?.data;
+        if (pref) {
           setLevel(pref.experienceLevel || 'Beginner');
           setDifficulty(pref.preferredDifficulty || 'Mixed');
           setTarget(pref.dailyTarget || 3);

@@ -29,6 +29,9 @@ public class EmailNotificationService {
     @Value("${app.mail.resend-api-key:${RESEND_API_KEY:}}")
     private String resendApiKey;
 
+    @Value("${app.frontend.url:${CLIENT_ORIGIN:https://leetcode-automation.vercel.app}}")
+    private String frontendUrl;
+
     public EmailNotificationService(JavaMailSender mailSender, EmailDeliveryLogRepository emailDeliveryLogRepository) {
         this.mailSender = mailSender;
         this.emailDeliveryLogRepository = emailDeliveryLogRepository;
@@ -127,21 +130,31 @@ public class EmailNotificationService {
 
         sb.append("<div style='margin:16px 0;'>");
         int idx = 1;
-        for (DailyPlanProblem p : plan.getProblems()) {
-            sb.append("<div style='padding:12px;margin-bottom:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;'>");
-            sb.append("<div style='display:flex;align-items:center;justify-content:space-between;'>");
-            sb.append("<span style='font-weight:600;font-size:14px;'>").append(idx++).append(". ").append(p.getProblem().getTitle()).append("</span>");
-            sb.append("<span style='font-size:11px;font-weight:600;padding:2px 8px;border-radius:9999px;background:#e0e7ff;color:#3730a3;'>")
-              .append(p.getProblem().getDifficulty()).append("</span>");
-            sb.append("</div>");
-            sb.append("<p style='font-size:12px;color:#64748b;margin:4px 0;'>Topic: ").append(p.getProblem().getTopic()).append("</p>");
-            sb.append("<a href='").append(p.getProblem().getUrl()).append("' style='display:inline-block;margin-top:6px;font-size:12px;color:#4f46e5;text-decoration:none;font-weight:600;'>Solve on LeetCode →</a>");
-            sb.append("</div>");
+        if (plan.getProblems() != null && !plan.getProblems().isEmpty()) {
+            for (DailyPlanProblem p : plan.getProblems()) {
+                sb.append("<div style='padding:12px;margin-bottom:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;'>");
+                sb.append("<div style='display:flex;align-items:center;justify-content:space-between;'>");
+                sb.append("<span style='font-weight:600;font-size:14px;'>").append(idx++).append(". ").append(p.getProblem().getTitle()).append("</span>");
+                sb.append("<span style='font-size:11px;font-weight:600;padding:2px 8px;border-radius:9999px;background:#e0e7ff;color:#3730a3;'>")
+                  .append(p.getProblem().getDifficulty()).append("</span>");
+                sb.append("</div>");
+                sb.append("<p style='font-size:12px;color:#64748b;margin:4px 0;'>Topic: ").append(p.getProblem().getTopic()).append("</p>");
+                sb.append("<a href='").append(p.getProblem().getUrl()).append("' style='display:inline-block;margin-top:6px;font-size:12px;color:#4f46e5;text-decoration:none;font-weight:600;'>Solve on LeetCode →</a>");
+                sb.append("</div>");
+            }
+        } else {
+            sb.append("<p style='font-size:13px;color:#64748b;padding:12px;background:#f8fafc;border-radius:8px;'>No problems assigned for today.</p>");
         }
         sb.append("</div>");
 
+        String linkUrl = "https://leetcode-automation.vercel.app";
+        if (frontendUrl != null && !frontendUrl.isBlank()) {
+            String[] origins = frontendUrl.split(",");
+            linkUrl = origins[origins.length - 1].trim();
+        }
+
         sb.append("<div style='margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0;text-align:center;'>");
-        sb.append("<a href='http://localhost:5173/dashboard' style='display:inline-block;padding:10px 20px;background:#4f46e5;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;border-radius:6px;'>Open Practice Dashboard</a>");
+        sb.append("<a href='").append(linkUrl).append("/dashboard' style='display:inline-block;padding:10px 20px;background:#4f46e5;color:#ffffff;text-decoration:none;font-size:13px;font-weight:600;border-radius:6px;'>Open Practice Dashboard</a>");
         sb.append("<p style='font-size:11px;color:#94a3b8;margin-top:12px;'>LeetCode Daily • Automated practice reminder in your configured timezone</p>");
         sb.append("</div>");
 

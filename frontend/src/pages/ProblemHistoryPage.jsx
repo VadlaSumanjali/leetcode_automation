@@ -47,8 +47,9 @@ export default function ProblemHistoryPage() {
     setError(null);
     try {
       const res = await apiClient.get('/history');
-      if (res.data && res.data.data) {
-        setHistoryItems(res.data.data);
+      const history = res?.data?.data ?? res?.data;
+      if (Array.isArray(history)) {
+        setHistoryItems(history);
       }
     } catch (err) {
       console.error('Failed to load history:', err);
@@ -75,8 +76,9 @@ export default function ProblemHistoryPage() {
         status: manualStatus
       });
 
-      if (res.data && res.data.data) {
-        setHistoryItems((prev) => [res.data.data, ...prev]);
+      const newItem = res?.data?.data ?? res?.data;
+      if (newItem && newItem.id) {
+        setHistoryItems((prev) => [newItem, ...prev]);
         setManualTitle('');
         setShowManualModal(false);
       }

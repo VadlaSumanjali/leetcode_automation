@@ -32,14 +32,16 @@ export default function DailyPlanPage() {
     setError(null);
     try {
       const res = await apiClient.get('/plans/today');
-      if (res.data && res.data.data) {
-        setPlan(res.data.data);
+      // Normalize plan object from API response
+      const planData = res?.data?.data ?? res?.data ?? res;
+      if (planData && (planData.problems !== undefined || planData.planDate !== undefined || planData.id !== undefined)) {
+        setPlan(planData);
       } else {
         setPlan(null);
       }
     } catch (err) {
       console.error('Failed to load today plan:', err);
-      setError(err.response?.data?.message || 'Unable to retrieve today\'s learning plan. Please try again.');
+      setError(err.response?.data?.message || err.message || 'Unable to retrieve today\'s learning plan. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -50,16 +52,25 @@ export default function DailyPlanPage() {
     setEmailNotice(null);
     try {
       const res = await apiClient.post('/plans/send-email');
-      if (res.data && res.data.success) {
-        setEmailNotice({ type: 'success', message: res.data.message || 'Daily problem email dispatched successfully!' });
+      const payload = res?.data ?? res;
+      const isSuccess = res?.success === true || payload?.sent === true;
+      const msg = res?.message || payload?.message;
+      if (isSuccess) {
+        setEmailNotice({
+          type: 'success',
+          message: msg || 'Daily problem email dispatched successfully!'
+        });
       } else {
-        setEmailNotice({ type: 'error', message: res.data?.message || 'Email dispatch failed' });
+        setEmailNotice({
+          type: 'error',
+          message: msg || 'Email dispatch failed'
+        });
       }
     } catch (err) {
       console.error('Email dispatch error:', err);
       setEmailNotice({
         type: 'error',
-        message: err.response?.data?.message || 'Failed to dispatch email. Check SMTP settings.'
+        message: err.response?.data?.message || err.message || 'Failed to dispatch email. Check SMTP settings.'
       });
     } finally {
       setSendingEmail(false);
@@ -77,11 +88,11 @@ export default function DailyPlanPage() {
         status: newStatus.toUpperCase()
       });
 
-      if (res.data && res.data.data) {
-        const updatedProblem = res.data.data;
+      const updatedProblem = res?.data?.data ?? res?.data;
+      if (updatedProblem && updatedProblem.status) {
         setPlan((prev) => {
           if (!prev) return prev;
-          const updatedProblems = prev.problems.map((p) =>
+          const updatedProblems = (prev.problems || []).map((p) =>
             p.problemId === problemId ? { ...p, status: updatedProblem.status } : p
           );
           const solvedCount = updatedProblems.filter(

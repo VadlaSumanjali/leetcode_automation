@@ -45,7 +45,34 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => {
     // Backend standard ApiResponse returns { success: true, message: "...", data: {...} }
-    return response.data;
+    const resData = response.data;
+    if (resData && typeof resData === 'object') {
+      // Bridge properties so callers using either res.data or res.data.data or res.data.success succeed seamlessly
+      if (resData.data && typeof resData.data === 'object' && !Array.isArray(resData.data)) {
+        if (!('data' in resData.data)) {
+          Object.defineProperty(resData.data, 'data', {
+            get() { return resData.data; },
+            configurable: true,
+            enumerable: false
+          });
+        }
+        if (!('success' in resData.data)) {
+          Object.defineProperty(resData.data, 'success', {
+            get() { return resData.success; },
+            configurable: true,
+            enumerable: false
+          });
+        }
+        if (!('message' in resData.data)) {
+          Object.defineProperty(resData.data, 'message', {
+            get() { return resData.message; },
+            configurable: true,
+            enumerable: false
+          });
+        }
+      }
+    }
+    return resData;
   },
   (error) => {
     if (error.response) {

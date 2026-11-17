@@ -13,8 +13,9 @@ export default function TopicProgressPage() {
     setError(null);
     try {
       const res = await apiClient.get('/dashboard/topics');
-      if (res.data && res.data.data) {
-        setTopics(res.data.data);
+      const topicList = res?.data?.data ?? res?.data;
+      if (Array.isArray(topicList)) {
+        setTopics(topicList);
       }
     } catch (err) {
       console.error('Failed to load topic progress:', err);

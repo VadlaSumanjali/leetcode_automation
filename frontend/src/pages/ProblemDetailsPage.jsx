@@ -42,9 +42,10 @@ export default function ProblemDetailsPage() {
       setError(null);
       try {
         const res = await apiClient.get(`/problems/${id}`);
-        if (res.data && res.data.data) {
-          setProblem(res.data.data);
-          setStatus(res.data.data.userStatus || 'PENDING');
+        const prob = res?.data?.data ?? res?.data;
+        if (prob) {
+          setProblem(prob);
+          setStatus(prob.userStatus || 'PENDING');
           // Fetch initial level 1 hint automatically
           fetchHint(1);
         }
@@ -71,8 +72,9 @@ export default function ProblemDetailsPage() {
     setHintLevel(level);
     try {
       const res = await apiClient.post(`/problems/${id}/ai-hint`, { level });
-      if (res.data && res.data.data) {
-        setHints((prev) => ({ ...prev, [level]: res.data.data }));
+      const hintData = res?.data?.data ?? res?.data;
+      if (hintData) {
+        setHints((prev) => ({ ...prev, [level]: hintData }));
       }
     } catch (err) {
       console.error('Failed to fetch hint:', err);
@@ -86,8 +88,9 @@ export default function ProblemDetailsPage() {
     setLoadingExplanation(true);
     try {
       const res = await apiClient.post(`/problems/${id}/ai-explanation`);
-      if (res.data && res.data.data) {
-        setExplanation(res.data.data.explanation);
+      const explData = res?.data?.data ?? res?.data;
+      if (explData && explData.explanation) {
+        setExplanation(explData.explanation);
       }
     } catch (err) {
       console.error('Failed to fetch explanation:', err);

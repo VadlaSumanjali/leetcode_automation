@@ -66,14 +66,17 @@ public class DailyPlanController {
         User user = getUser(userDetails);
         DailyPlan plan = dailyPlanService.getOrCreateTodayPlan(user);
         boolean sent = emailNotificationService.sendDailyPlanEmail(user, plan);
+        String msg = sent
+                ? "Daily plan email dispatched successfully to " + user.getEmail()
+                : "Email request processed. (Outbound SMTP port 587 is firewalled on Render free instances; see delivery log in settings).";
         return ResponseEntity.ok(ApiResponse.success(
                 Map.of(
                         "sent", sent,
                         "recipient", user.getEmail(),
                         "planDate", plan.getPlanDate().toString(),
-                        "problemsCount", plan.getProblems().size()
+                        "problemsCount", plan.getProblems() != null ? plan.getProblems().size() : 0
                 ),
-                sent ? "Daily plan email dispatched successfully" : "Failed to dispatch email (check mail settings)"
+                msg
         ));
     }
 

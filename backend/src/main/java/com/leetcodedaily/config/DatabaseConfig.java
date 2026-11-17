@@ -66,9 +66,20 @@ public class DatabaseConfig {
             }
         }
 
-        // Ensure prepareThreshold=0 for Supabase Pooler
-        if (activeUrl != null && activeUrl.startsWith("jdbc:postgresql:") && !activeUrl.contains("prepareThreshold")) {
-            activeUrl += (activeUrl.contains("?") ? "&" : "?") + "prepareThreshold=0";
+        // Auto-upgrade Supabase pooler session port 5432 to transaction pooler port 6543
+        if (activeUrl != null && activeUrl.contains("pooler.supabase.com:5432")) {
+            activeUrl = activeUrl.replace("pooler.supabase.com:5432", "pooler.supabase.com:6543");
+            log.info("Auto-upgraded Supabase pooler connection from session port 5432 to transaction port 6543");
+        }
+
+        // Ensure prepareThreshold=0 and sslmode=require for Supabase Pooler
+        if (activeUrl != null && activeUrl.startsWith("jdbc:postgresql:")) {
+            if (!activeUrl.contains("prepareThreshold")) {
+                activeUrl += (activeUrl.contains("?") ? "&" : "?") + "prepareThreshold=0";
+            }
+            if (!activeUrl.contains("sslmode")) {
+                activeUrl += (activeUrl.contains("?") ? "&" : "?") + "sslmode=require";
+            }
         }
 
         // Determine if PostgreSQL or MySQL or H2
@@ -91,6 +102,10 @@ public class DatabaseConfig {
             }
             if (driverClassName != null && !driverClassName.isBlank()) {
                 config.setDriverClassName(driverClassName);
+            }
+            if (activeUrl.startsWith("jdbc:postgresql:")) {
+                config.addDataSourceProperty("prepareThreshold", "0");
+                config.addDataSourceProperty("sslmode", "require");
             }
             config.setMaximumPoolSize(10);
             config.setMinimumIdle(2);
