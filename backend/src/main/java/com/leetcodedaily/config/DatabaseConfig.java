@@ -45,7 +45,7 @@ public class DatabaseConfig {
             try {
                 URI uri = new URI(activeUrl.replace("postgresql://", "http://").replace("postgres://", "http://"));
                 String host = uri.getHost();
-                int port = uri.getPort() > 0 ? uri.getPort() : 5432;
+                int port = uri.getPort() > 0 ? uri.getPort() : 6543;
                 String path = uri.getPath();
                 String dbName = (path != null && path.length() > 1) ? path.substring(1) : "postgres";
 
@@ -59,11 +59,16 @@ public class DatabaseConfig {
                     }
                 }
 
-                activeUrl = "jdbc:postgresql://" + host + ":" + port + "/" + dbName + "?sslmode=require";
+                activeUrl = "jdbc:postgresql://" + host + ":" + port + "/" + dbName + "?sslmode=require&prepareThreshold=0";
                 driverClassName = "org.postgresql.Driver";
             } catch (Exception e) {
                 log.warn("Could not parse URI format for database URL, using raw: {}", e.getMessage());
             }
+        }
+
+        // Ensure prepareThreshold=0 for Supabase Pooler
+        if (activeUrl != null && activeUrl.startsWith("jdbc:postgresql:") && !activeUrl.contains("prepareThreshold")) {
+            activeUrl += (activeUrl.contains("?") ? "&" : "?") + "prepareThreshold=0";
         }
 
         // Determine if PostgreSQL or MySQL or H2

@@ -26,6 +26,9 @@ public class EmailNotificationService {
     @Value("${spring.mail.username:}")
     private String fromEmail;
 
+    @Value("${app.mail.resend-api-key:${RESEND_API_KEY:}}")
+    private String resendApiKey;
+
     public EmailNotificationService(JavaMailSender mailSender, EmailDeliveryLogRepository emailDeliveryLogRepository) {
         this.mailSender = mailSender;
         this.emailDeliveryLogRepository = emailDeliveryLogRepository;
@@ -33,6 +36,22 @@ public class EmailNotificationService {
 
     public boolean sendDailyPlanEmail(User user, DailyPlan plan) {
         String recipient = user.getEmail();
+        String subject = "🔥 LeetCode Daily: Day " + plan.getDayNumber() + " Practice Plan (" + plan.getPlanDate() + ")";
+        String htmlBody = buildHtmlEmailContent(user, plan);
+
+        // 1. If RESEND_API_KEY is configured (works on Render free tier over HTTPS without port blocks)
+        if (resendApiKey != null && !resendApiKey.isBlank()) {
+            try {
+                sendViaResend(recipient, subject, htmlBody);
+                log.info("Daily problem email dispatched successfully via Resend HTTPS to {}", recipient);
+                logSuccess(user, plan, recipient, "Dispatched successfully via Resend HTTPS");
+                return true;
+            } catch (Exception ex) {
+                log.warn("Resend HTTPS dispatch failed: {}. Falling back to SMTP.", ex.getMessage());
+            }
+        }
+
+        // 2. Standard Gmail SMTP
         try {
             if (fromEmail == null || fromEmail.isBlank()) {
                 log.info("Email dispatch simulated (no MAIL_USERNAME configured) for {}", recipient);
@@ -45,9 +64,7 @@ public class EmailNotificationService {
 
             helper.setFrom(fromEmail, "LeetCode Daily");
             helper.setTo(recipient);
-            helper.setSubject("🔥 LeetCode Daily: Day " + plan.getDayNumber() + " Practice Plan (" + plan.getPlanDate() + ")");
-
-            String htmlBody = buildHtmlEmailContent(user, plan);
+            helper.setSubject(subject);
             helper.setText(htmlBody, true);
 
             mailSender.send(message);
@@ -55,9 +72,31 @@ public class EmailNotificationService {
             logSuccess(user, plan, recipient, "Dispatched successfully via Gmail SMTP");
             return true;
         } catch (Exception ex) {
-            log.error("Failed to send daily problem email to {}: {}", recipient, ex.getMessage());
-            logFailure(user, plan, recipient, ex.getMessage());
+            String err = ex.getMessage();
+            if (err != null && err.contains("timeout")) {
+                err = "SMTP timeout (Render Free Tier blocks outbound port 587/465. Set RESEND_API_KEY for HTTPS delivery): " + err;
+            }
+            log.error("Failed to send daily problem email to {}: {}", recipient, err);
+            logFailure(user, plan, recipient, err);
             return false;
+        }
+    }
+
+    private void sendViaResend(String recipient, String subject, String htmlContent) throws Exception {
+        java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
+        String sender = (fromEmail != null && fromEmail.contains("@") && !fromEmail.contains("gmail"))
+                ? fromEmail : "LeetCode Daily <onboarding@resend.dev>";
+        String json = String.format("{\"from\":\"%s\",\"to\":[\"%s\"],\"subject\":\"%s\",\"html\":%s}",
+                sender, recipient, subject, new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(htmlContent));
+        java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                .uri(java.net.URI.create("https://api.resend.com/emails"))
+                .header("Authorization", "Bearer " + resendApiKey.trim())
+                .header("Content-Type", "application/json")
+                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(json))
+                .build();
+        java.net.http.HttpResponse<String> response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() >= 400) {
+            throw new RuntimeException("Resend API error " + response.statusCode() + ": " + response.body());
         }
     }
 

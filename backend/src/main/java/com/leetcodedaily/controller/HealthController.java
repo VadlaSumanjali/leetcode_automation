@@ -28,6 +28,9 @@ public class HealthController {
     @Value("${spring.mail.username:}")
     private String mailUsername;
 
+    @Value("${app.mail.resend-api-key:${RESEND_API_KEY:}}")
+    private String resendApiKey;
+
     @Autowired(required = false)
     private DataSource dataSource;
 
@@ -83,6 +86,25 @@ public class HealthController {
                     .body(ApiResponse.error("No recipient email specified and MAIL_USERNAME is not configured"));
         }
 
+        // 1. Try Resend HTTPS API if key configured (for environments like Render Free Tier)
+        if (resendApiKey != null && !resendApiKey.isBlank()) {
+            try {
+                sendViaResend(recipient, "🔥 LeetCode Daily Production Test Email",
+                        "<h3>LeetCode Daily Production Email Verification</h3><p>Your Resend HTTPS integration is working successfully!</p><p>Timestamp: " + LocalDateTime.now() + "</p>");
+                Map<String, Object> res = Map.of(
+                        "delivered", true,
+                        "recipient", recipient,
+                        "provider", "Resend HTTPS API",
+                        "timestamp", LocalDateTime.now().toString()
+                );
+                return ResponseEntity.ok(ApiResponse.success(res, "Test email dispatched successfully via Resend HTTPS"));
+            } catch (Exception e) {
+                return ResponseEntity.internalServerError()
+                        .body(ApiResponse.error("Failed to send via Resend HTTPS: " + e.getMessage()));
+            }
+        }
+
+        // 2. Standard Gmail SMTP
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
@@ -96,12 +118,35 @@ public class HealthController {
             Map<String, Object> res = Map.of(
                     "delivered", true,
                     "recipient", recipient,
+                    "provider", "Gmail SMTP",
                     "timestamp", LocalDateTime.now().toString()
             );
             return ResponseEntity.ok(ApiResponse.success(res, "Test email dispatched successfully via Gmail SMTP"));
         } catch (Exception e) {
+            String msg = e.getMessage();
+            if (msg != null && msg.contains("timeout")) {
+                msg += " (NOTE: Render Free Tier blocks outbound SMTP ports 587/465. To send live emails on Render Free Tier, add RESEND_API_KEY in Render Environment).";
+            }
             return ResponseEntity.internalServerError()
-                    .body(ApiResponse.error("Failed to send test email: " + e.getMessage()));
+                    .body(ApiResponse.error("Failed to send test email: " + msg));
+        }
+    }
+
+    private void sendViaResend(String recipient, String subject, String htmlContent) throws Exception {
+        java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
+        String sender = (mailUsername != null && mailUsername.contains("@") && !mailUsername.contains("gmail"))
+                ? mailUsername : "LeetCode Daily <onboarding@resend.dev>";
+        String json = String.format("{\"from\":\"%s\",\"to\":[\"%s\"],\"subject\":\"%s\",\"html\":%s}",
+                sender, recipient, subject, new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(htmlContent));
+        java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                .uri(java.net.URI.create("https://api.resend.com/emails"))
+                .header("Authorization", "Bearer " + resendApiKey.trim())
+                .header("Content-Type", "application/json")
+                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(json))
+                .build();
+        java.net.http.HttpResponse<String> response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() >= 400) {
+            throw new RuntimeException("Resend API error " + response.statusCode() + ": " + response.body());
         }
     }
 
